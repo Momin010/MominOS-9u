@@ -1,0 +1,8 @@
+{
+  "name": "MominOS Desktop Runner",
+  "description": "Simple runner for MominOS desktop application",
+  "scripts": {
+    "start": "./start-desktop.sh",
+    "build": "./build-desktop.sh"
+  }
+}

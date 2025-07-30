@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect, useCallback } from "react"
-import { motion, AnimatePresence, useMotionValue, useTransform, type PanInfo } from "framer-motion"
+import { useState, useRef, useEffect } from "react"
+import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -23,7 +23,6 @@ import {
   Maximize2,
   X,
   Wifi,
-  Battery,
   Volume2,
   Bell,
   LogOut,
@@ -32,7 +31,15 @@ import {
   Trash2,
   ArrowLeft,
   ArrowRight,
-  Square,
+  WifiOff,
+  VolumeX,
+  BatteryLow,
+  BatteryMedium,
+  BatteryFull,
+  Check,
+  Lock,
+  Minus,
+  Plus,
 } from "lucide-react"
 
 interface User {
@@ -66,12 +73,12 @@ interface Window {
   minimized: boolean
   maximized: boolean
   component: any
-  snapped?: "left" | "right" | "top-left" | "top-right" | "bottom-left" | "bottom-right" | null
+  snapped?: "left" | "right" | null
   isResizing?: boolean
 }
 
 type DockPosition = "bottom" | "top" | "left" | "right" | "bottom-left" | "bottom-right" | "top-left" | "top-right"
-type SnapZone = "left-half" | "right-half" | "top-left" | "top-right" | "bottom-left" | "bottom-right" | "maximize"
+type SnapZone = "left-half" | "right-half" | "maximize"
 
 // Spring configurations
 const springConfig = {
@@ -91,6 +98,21 @@ const bouncySpring = {
   stiffness: 500,
   damping: 20,
 }
+
+// Mock data
+const mockNotifications = [
+  { id: 1, title: "System Update", message: "MominOS update available", time: "10:30 AM", read: false },
+  { id: 2, title: "Calendar", message: "Meeting in 15 minutes", time: "11:45 AM", read: false },
+  { id: 3, title: "Mail", message: "New message from Alex", time: "Yesterday", read: true },
+  { id: 4, title: "Settings", message: "Backup completed successfully", time: "Yesterday", read: true },
+]
+
+const mockNetworks = [
+  { name: "MominOS-WiFi", strength: 4, secured: false, connected: true },
+  { name: "Home-Network", strength: 3, secured: true, connected: false },
+  { name: "Office-5G", strength: 2, secured: true, connected: false },
+  { name: "Guest-Network", strength: 1, secured: false, connected: false },
+]
 
 export default function Desktop({ user, onLogout }: DesktopProps) {
   const [searchOpen, setSearchOpen] = useState(false)
@@ -117,6 +139,21 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
     startWindowX: number
     startWindowY: number
   } | null>(null)
+
+  const [showWindowPreview, setShowWindowPreview] = useState<string | null>(null)
+  const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 })
+
+  // System state
+  const [wifiEnabled, setWifiEnabled] = useState(true)
+  const [volumeLevel, setVolumeLevel] = useState(75)
+  const [volumeEnabled, setVolumeEnabled] = useState(true)
+  const [batteryLevel, setBatteryLevel] = useState(87)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showWifiMenu, setShowWifiMenu] = useState(false)
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false)
+  const [showBatteryMenu, setShowBatteryMenu] = useState(false)
+  const [notifications, setNotifications] = useState(mockNotifications)
+  const [unreadNotifications, setUnreadNotifications] = useState(mockNotifications.filter((n) => !n.read).length)
 
   const dragRef = useRef<{ windowId: string; startX: number; startY: number } | null>(null)
   const dockRef = useRef<HTMLDivElement>(null)
@@ -154,6 +191,17 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  // Simulate battery drain
+  useEffect(() => {
+    const batteryTimer = setInterval(() => {
+      setBatteryLevel((prev) => {
+        if (prev <= 1) return 100
+        return prev - 1
+      })
+    }, 60000) // Every minute
+    return () => clearInterval(batteryTimer)
   }, [])
 
   const desktopApps: App[] = [
@@ -241,30 +289,30 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
   }
 
   // Handle dock drag
-  const handleDockDrag = useCallback((event: any, info: PanInfo) => {
-    const { x, y } = info.point
-    const windowWidth = window.innerWidth
-    const windowHeight = window.innerHeight
+  // const handleDockDrag = useCallback((event: any, info: PanInfo) => {
+  //   const { x, y } = info.point
+  //   const windowWidth = window.innerWidth
+  //   const windowHeight = window.innerHeight
 
-    let newPosition: DockPosition = "bottom"
+  //   let newPosition: DockPosition = "bottom"
 
-    const margin = 100
-    const isNearLeft = x < margin
-    const isNearRight = x > windowWidth - margin
-    const isNearTop = y < margin + 64
-    const isNearBottom = y > windowHeight - margin
+  //   const margin = 100
+  //   const isNearLeft = x < margin
+  //   const isNearRight = x > windowWidth - margin
+  //   const isNearTop = y < margin + 64
+  //   const isNearBottom = y > windowHeight - margin
 
-    if (isNearLeft && isNearTop) newPosition = "top-left"
-    else if (isNearRight && isNearTop) newPosition = "top-right"
-    else if (isNearLeft && isNearBottom) newPosition = "bottom-left"
-    else if (isNearRight && isNearBottom) newPosition = "bottom-right"
-    else if (isNearLeft) newPosition = "left"
-    else if (isNearRight) newPosition = "right"
-    else if (isNearTop) newPosition = "top"
-    else newPosition = "bottom"
+  //   if (isNearLeft && isNearTop) newPosition = "top-left"
+  //   else if (isNearRight && isNearTop) newPosition = "top-right"
+  //   else if (isNearLeft && isNearBottom) newPosition = "bottom-left"
+  //   else if (isNearRight && isNearBottom) newPosition = "bottom-right"
+  //   else if (isNearLeft) newPosition = "left"
+  //   else if (isNearRight) newPosition = "right"
+  //   else if (isNearTop) newPosition = "top"
+  //   else newPosition = "bottom"
 
-    setDockPosition(newPosition)
-  }, [])
+  //   setDockPosition(newPosition)
+  // }, [])
 
   // Handle window resizing
   const handleWindowResize = (e: MouseEvent) => {
@@ -423,7 +471,7 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
     )
   }
 
-  // Enhanced snap window function with multiple layouts
+  // Simplified snap window function - only 50/50 splits
   const snapWindow = (windowId: string, zone: SnapZone) => {
     const screenWidth = window.innerWidth
     const screenHeight = window.innerHeight - 40 // Account for top bar
@@ -448,34 +496,6 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
         newWidth = screenWidth / 2
         newHeight = screenHeight
         snapType = "right"
-        break
-      case "top-left":
-        newX = 0
-        newY = 40
-        newWidth = screenWidth / 2
-        newHeight = screenHeight / 2
-        snapType = "top-left"
-        break
-      case "top-right":
-        newX = screenWidth / 2
-        newY = 40
-        newWidth = screenWidth / 2
-        newHeight = screenHeight / 2
-        snapType = "top-right"
-        break
-      case "bottom-left":
-        newX = 0
-        newY = 40 + screenHeight / 2
-        newWidth = screenWidth / 2
-        newHeight = screenHeight / 2
-        snapType = "bottom-left"
-        break
-      case "bottom-right":
-        newX = screenWidth / 2
-        newY = 40 + screenHeight / 2
-        newWidth = screenWidth / 2
-        newHeight = screenHeight / 2
-        snapType = "bottom-right"
         break
       case "maximize":
         newX = 0
@@ -524,13 +544,12 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
     const deltaX = e.clientX - dragRef.current.startX
     const deltaY = e.clientY - dragRef.current.startY
 
-    // Show snap zones when dragging near edges
-    const margin = 50
+    // Show snap zones when dragging near edges - larger margins for easier snapping
+    const margin = 100 // Increased margin for easier snapping
     const showZones =
       e.clientY < margin || // Top
       e.clientX < margin || // Left
-      e.clientX > window.innerWidth - margin || // Right
-      e.clientY > window.innerHeight - margin // Bottom
+      e.clientX > window.innerWidth - margin // Right
 
     setShowSnapZones(showZones)
 
@@ -555,25 +574,16 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
     if (dragRef.current && showSnapZones) {
       const windowId = dragRef.current.windowId
       const { clientX: x, clientY: y } = e
-      const margin = 50
+      const margin = 100
+      const windowWidth = window.innerWidth
 
-      // Determine snap zone based on mouse position
-      if (y < margin) {
-        if (x < window.innerWidth / 2) {
-          snapWindow(windowId, "top-left")
-        } else {
-          snapWindow(windowId, "top-right")
-        }
-      } else if (y > window.innerHeight - margin) {
-        if (x < window.innerWidth / 2) {
-          snapWindow(windowId, "bottom-left")
-        } else {
-          snapWindow(windowId, "bottom-right")
-        }
-      } else if (x < margin) {
+      // Simplified snapping - only left/right halves and maximize
+      if (x < margin) {
         snapWindow(windowId, "left-half")
-      } else if (x > window.innerWidth - margin) {
+      } else if (x > windowWidth - margin) {
         snapWindow(windowId, "right-half")
+      } else if (y < margin) {
+        snapWindow(windowId, "maximize")
       }
     }
 
@@ -584,6 +594,94 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
     // Clear resize state
     setWindows(windows.map((w) => ({ ...w, isResizing: false })))
   }
+
+  // System control functions
+  const toggleWifi = () => {
+    setWifiEnabled(!wifiEnabled)
+    setShowWifiMenu(false)
+  }
+
+  const connectToNetwork = (networkName: string) => {
+    // Mock network connection
+    console.log(`Connecting to ${networkName}...`)
+    setShowWifiMenu(false)
+  }
+
+  const toggleVolume = () => {
+    setVolumeEnabled(!volumeEnabled)
+    if (!volumeEnabled) {
+      setVolumeLevel(75)
+    } else {
+      setVolumeLevel(0)
+    }
+  }
+
+  const handleVolumeChange = (newVolume: number) => {
+    setVolumeLevel(newVolume)
+    setVolumeEnabled(newVolume > 0)
+  }
+
+  const toggleNotifications = () => {
+    if (!showNotifications) {
+      // Mark all as read when opening
+      setNotifications(notifications.map((n) => ({ ...n, read: true })))
+      setUnreadNotifications(0)
+    }
+    setShowNotifications(!showNotifications)
+  }
+
+  const clearNotifications = () => {
+    setNotifications([])
+    setUnreadNotifications(0)
+  }
+
+  const emptyTrash = () => {
+    // Show a mock animation
+    const trashIcon = document.querySelector(".trash-icon")
+    if (trashIcon) {
+      trashIcon.classList.add("animate-bounce")
+      setTimeout(() => {
+        trashIcon.classList.remove("animate-bounce")
+      }, 1000)
+    }
+  }
+
+  // Generate window preview
+  const generateWindowPreview = (windowId: string) => {
+    const window = windows.find((w) => w.id === windowId)
+    if (!window) return null
+
+    return {
+      id: windowId,
+      title: window.title,
+      icon: window.icon,
+      isMinimized: window.minimized,
+      isActive: activeWindow === windowId,
+      preview: `Window content preview for ${window.title}`, // In real implementation, this would be a screenshot
+    }
+  }
+
+  // Get battery icon based on level
+  const getBatteryIcon = () => {
+    if (batteryLevel > 70) return <BatteryFull className="w-4 h-4" />
+    if (batteryLevel > 30) return <BatteryMedium className="w-4 h-4" />
+    return <BatteryLow className="w-4 h-4 text-red-400" />
+  }
+
+  // Get signal strength bars
+  const getSignalBars = (strength: number) => {
+    return Array.from({ length: 4 }, (_, i) => (
+      <div
+        key={i}
+        className={`w-1 bg-white rounded-full ${
+          i < strength ? "opacity-100" : "opacity-30"
+        } ${i === 0 ? "h-1" : i === 1 ? "h-2" : i === 2 ? "h-3" : "h-4"}`}
+      />
+    ))
+  }
+
+  // Filter apps based on search query
+  const filteredApps = desktopApps.filter((app) => app.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
   // Parallax values for subtle background movement
   const parallaxX = useTransform(useMotionValue(mousePosition.x), [0, window.innerWidth || 1920], [-10, 10])
@@ -621,131 +719,59 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
         transition={{ duration: 1, delay: 0.2 }}
       />
 
-      {/* Enhanced Snap Zones for Multi-tasking */}
+      {/* Simplified Snap Zones - Only 50/50 splits and maximize */}
       <AnimatePresence>
         {showSnapZones && (
           <>
-            {/* Left Half */}
+            {/* Left Half - Large and prominent */}
             <motion.div
-              className="absolute top-10 left-0 w-1/2 h-[calc(100%-2.5rem)] bg-blue-500/20 border-2 border-blue-500/50 rounded-r-lg backdrop-blur-sm z-40"
-              initial={{ opacity: 0, x: -50 }}
+              className="absolute top-10 left-0 w-1/2 h-[calc(100%-2.5rem)] bg-blue-500/25 border-2 border-blue-500/60 rounded-r-2xl backdrop-blur-sm z-40"
+              initial={{ opacity: 0, x: -100 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
+              exit={{ opacity: 0, x: -100 }}
               transition={springConfig}
               onClick={() => draggingWindow && snapWindow(draggingWindow, "left-half")}
             >
               <div className="flex items-center justify-center h-full">
                 <div className="text-white text-center">
-                  <ArrowLeft className="w-12 h-12 mx-auto mb-2" />
-                  <p className="text-lg font-semibold">Left Half</p>
-                  <p className="text-sm opacity-75">50% width</p>
+                  <ArrowLeft className="w-20 h-20 mx-auto mb-4" />
+                  <p className="text-3xl font-bold mb-2">Left Half</p>
+                  <p className="text-xl opacity-80">50% width</p>
                 </div>
               </div>
             </motion.div>
 
-            {/* Right Half */}
+            {/* Right Half - Large and prominent */}
             <motion.div
-              className="absolute top-10 right-0 w-1/2 h-[calc(100%-2.5rem)] bg-blue-500/20 border-2 border-blue-500/50 rounded-l-lg backdrop-blur-sm z-40"
-              initial={{ opacity: 0, x: 50 }}
+              className="absolute top-10 right-0 w-1/2 h-[calc(100%-2.5rem)] bg-blue-500/25 border-2 border-blue-500/60 rounded-l-2xl backdrop-blur-sm z-40"
+              initial={{ opacity: 0, x: 100 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 50 }}
+              exit={{ opacity: 0, x: 100 }}
               transition={springConfig}
               onClick={() => draggingWindow && snapWindow(draggingWindow, "right-half")}
             >
               <div className="flex items-center justify-center h-full">
                 <div className="text-white text-center">
-                  <ArrowRight className="w-12 h-12 mx-auto mb-2" />
-                  <p className="text-lg font-semibold">Right Half</p>
-                  <p className="text-sm opacity-75">50% width</p>
+                  <ArrowRight className="w-20 h-20 mx-auto mb-4" />
+                  <p className="text-3xl font-bold mb-2">Right Half</p>
+                  <p className="text-xl opacity-80">50% width</p>
                 </div>
               </div>
             </motion.div>
 
-            {/* Top Left Quarter */}
+            {/* Maximize Zone (Top Center) - Larger for easier access */}
             <motion.div
-              className="absolute top-10 left-0 w-1/2 h-[calc(50%-1.25rem)] bg-green-500/20 border-2 border-green-500/50 rounded-br-lg backdrop-blur-sm z-40"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={springConfig}
-              onClick={() => draggingWindow && snapWindow(draggingWindow, "top-left")}
-            >
-              <div className="flex items-center justify-center h-full">
-                <div className="text-white text-center">
-                  <Square className="w-8 h-8 mx-auto mb-1" />
-                  <p className="text-sm font-semibold">Top Left</p>
-                  <p className="text-xs opacity-75">25%</p>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Top Right Quarter */}
-            <motion.div
-              className="absolute top-10 right-0 w-1/2 h-[calc(50%-1.25rem)] bg-green-500/20 border-2 border-green-500/50 rounded-bl-lg backdrop-blur-sm z-40"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={springConfig}
-              onClick={() => draggingWindow && snapWindow(draggingWindow, "top-right")}
-            >
-              <div className="flex items-center justify-center h-full">
-                <div className="text-white text-center">
-                  <Square className="w-8 h-8 mx-auto mb-1" />
-                  <p className="text-sm font-semibold">Top Right</p>
-                  <p className="text-xs opacity-75">25%</p>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Bottom Left Quarter */}
-            <motion.div
-              className="absolute bottom-10 left-0 w-1/2 h-[calc(50%-1.25rem)] bg-green-500/20 border-2 border-green-500/50 rounded-tr-lg backdrop-blur-sm z-40"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={springConfig}
-              onClick={() => draggingWindow && snapWindow(draggingWindow, "bottom-left")}
-            >
-              <div className="flex items-center justify-center h-full">
-                <div className="text-white text-center">
-                  <Square className="w-8 h-8 mx-auto mb-1" />
-                  <p className="text-sm font-semibold">Bottom Left</p>
-                  <p className="text-xs opacity-75">25%</p>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Bottom Right Quarter */}
-            <motion.div
-              className="absolute bottom-10 right-0 w-1/2 h-[calc(50%-1.25rem)] bg-green-500/20 border-2 border-green-500/50 rounded-tl-lg backdrop-blur-sm z-40"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={springConfig}
-              onClick={() => draggingWindow && snapWindow(draggingWindow, "bottom-right")}
-            >
-              <div className="flex items-center justify-center h-full">
-                <div className="text-white text-center">
-                  <Square className="w-8 h-8 mx-auto mb-1" />
-                  <p className="text-sm font-semibold">Bottom Right</p>
-                  <p className="text-xs opacity-75">25%</p>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Maximize Zone (Top Center) */}
-            <motion.div
-              className="absolute top-10 left-1/4 w-1/2 h-16 bg-purple-500/20 border-2 border-purple-500/50 rounded-lg backdrop-blur-sm z-40"
-              initial={{ opacity: 0, y: -20 }}
+              className="absolute top-10 left-1/4 w-1/2 h-32 bg-purple-500/25 border-2 border-purple-500/60 rounded-2xl backdrop-blur-sm z-40"
+              initial={{ opacity: 0, y: -50 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              exit={{ opacity: 0, y: -50 }}
               transition={springConfig}
               onClick={() => draggingWindow && snapWindow(draggingWindow, "maximize")}
             >
               <div className="flex items-center justify-center h-full">
-                <div className="text-white text-center flex items-center gap-2">
-                  <Maximize2 className="w-6 h-6" />
-                  <span className="font-semibold">Maximize</span>
+                <div className="text-white text-center flex items-center gap-4">
+                  <Maximize2 className="w-12 h-12" />
+                  <span className="text-3xl font-bold">Maximize</span>
                 </div>
               </div>
             </motion.div>
@@ -753,7 +779,7 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
         )}
       </AnimatePresence>
 
-      {/* Top Bar with adaptive glow */}
+      {/* Top Bar with functional system controls */}
       <motion.div
         className="absolute top-0 left-0 right-0 h-10 bg-black/30 backdrop-blur-xl border-b border-white/10 flex items-center justify-between px-4 z-50"
         style={{ boxShadow: getAdaptiveGlow("low") }}
@@ -767,6 +793,7 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             transition={bouncySpring}
+            onClick={() => setSearchOpen(true)}
           >
             <motion.div
               className="w-6 h-6 bg-gradient-to-br from-purple-500 to-green-400 rounded-md flex items-center justify-center"
@@ -824,45 +851,298 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ ...springConfig, delay: 0.3 }}
         >
-          <motion.button
-            className="p-1 rounded-md hover:bg-white/10"
-            whileHover={{ scale: 1.1, rotate: 5, boxShadow: getAdaptiveGlow("low") }}
-            whileTap={{ scale: 0.9 }}
-            transition={springConfig}
-          >
-            <Bell className="w-4 h-4" />
-          </motion.button>
+          {/* Notifications */}
+          <div className="relative">
+            <motion.button
+              className="p-1 rounded-md hover:bg-white/10 relative"
+              whileHover={{ scale: 1.1, rotate: 5, boxShadow: getAdaptiveGlow("low") }}
+              whileTap={{ scale: 0.9 }}
+              transition={springConfig}
+              onClick={toggleNotifications}
+            >
+              <Bell className="w-4 h-4" />
+              {unreadNotifications > 0 && (
+                <motion.div
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={bouncySpring}
+                >
+                  <span className="text-xs text-white font-bold">{unreadNotifications}</span>
+                </motion.div>
+              )}
+            </motion.button>
 
-          <motion.div
-            className="flex items-center gap-1 cursor-pointer"
-            whileHover={{ scale: 1.05, color: "#ffffff" }}
-            transition={{ duration: 0.2 }}
-          >
-            <Wifi className="w-4 h-4" />
-          </motion.div>
+            {/* Notifications Panel */}
+            <AnimatePresence>
+              {showNotifications && (
+                <motion.div
+                  className="absolute top-8 right-0 w-80 bg-black/90 backdrop-blur-xl border border-white/10 p-3 z-50 rounded-xl"
+                  style={{ boxShadow: getAdaptiveGlow("high") }}
+                  initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: -10 }}
+                  transition={springConfig}
+                >
+                  <div className="flex justify-between items-center p-2 border-b border-white/10 mb-2">
+                    <h3 className="text-white font-medium">Notifications</h3>
+                    <motion.button
+                      className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-md hover:bg-white/10"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={clearNotifications}
+                    >
+                      Clear All
+                    </motion.button>
+                  </div>
 
-          <motion.div
-            className="flex items-center gap-1 cursor-pointer"
-            whileHover={{ scale: 1.05, color: "#ffffff" }}
-            transition={{ duration: 0.2 }}
-          >
-            <Volume2 className="w-4 h-4" />
-          </motion.div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length > 0 ? (
+                      notifications.map((notification, index) => (
+                        <motion.div
+                          key={notification.id}
+                          className={`p-3 mb-2 rounded-lg ${
+                            notification.read ? "bg-white/5" : "bg-white/10"
+                          } hover:bg-white/15 cursor-pointer`}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ ...springConfig, delay: index * 0.05 }}
+                          whileHover={{ scale: 1.02 }}
+                        >
+                          <div className="flex justify-between items-start">
+                            <span className="text-sm font-medium text-white">{notification.title}</span>
+                            <span className="text-xs text-gray-400">{notification.time}</span>
+                          </div>
+                          <p className="text-xs text-gray-300 mt-1">{notification.message}</p>
+                        </motion.div>
+                      ))
+                    ) : (
+                      <motion.div
+                        className="p-6 text-center text-gray-400"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                      >
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>No notifications</p>
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-          <motion.div
-            className="flex items-center gap-1 cursor-pointer"
-            whileHover={{ scale: 1.05, color: "#ffffff" }}
-            transition={{ duration: 0.2 }}
-          >
-            <Battery className="w-4 h-4" />
-            <span>87%</span>
-          </motion.div>
+          {/* WiFi */}
+          <div className="relative">
+            <motion.div
+              className="flex items-center gap-1 cursor-pointer p-1 rounded-md hover:bg-white/10"
+              whileHover={{ scale: 1.05, color: "#ffffff" }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowWifiMenu(!showWifiMenu)}
+            >
+              {wifiEnabled ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4 text-gray-500" />}
+            </motion.div>
 
+            {/* WiFi Menu */}
+            <AnimatePresence>
+              {showWifiMenu && (
+                <motion.div
+                  className="absolute top-8 right-0 w-64 bg-black/90 backdrop-blur-xl border border-white/10 p-3 z-50 rounded-xl"
+                  style={{ boxShadow: getAdaptiveGlow("high") }}
+                  initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: -10 }}
+                  transition={springConfig}
+                >
+                  <div className="flex justify-between items-center p-2 border-b border-white/10 mb-2">
+                    <h3 className="text-white font-medium">Wi-Fi</h3>
+                    <motion.button
+                      className={`text-xs px-2 py-1 rounded-md ${
+                        wifiEnabled ? "bg-green-600 text-white" : "bg-gray-600 text-gray-300"
+                      }`}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={toggleWifi}
+                    >
+                      {wifiEnabled ? "ON" : "OFF"}
+                    </motion.button>
+                  </div>
+
+                  {wifiEnabled && (
+                    <div className="space-y-1">
+                      {mockNetworks.map((network, index) => (
+                        <motion.div
+                          key={network.name}
+                          className={`p-2 rounded-lg cursor-pointer ${
+                            network.connected ? "bg-blue-600/30" : "hover:bg-white/10"
+                          }`}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ ...springConfig, delay: index * 0.05 }}
+                          onClick={() => connectToNetwork(network.name)}
+                          whileHover={{ scale: 1.02 }}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-0.5">{getSignalBars(network.strength)}</div>
+                              <span className="text-white text-sm">{network.name}</span>
+                              {network.secured && <Lock className="w-3 h-3 text-gray-400" />}
+                            </div>
+                            {network.connected && <Check className="w-4 h-4 text-green-400" />}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Volume */}
+          <div className="relative">
+            <motion.div
+              className="flex items-center gap-1 cursor-pointer p-1 rounded-md hover:bg-white/10"
+              whileHover={{ scale: 1.05, color: "#ffffff" }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowVolumeSlider(!showVolumeSlider)}
+            >
+              {volumeEnabled && volumeLevel > 0 ? (
+                <Volume2 className="w-4 h-4" />
+              ) : (
+                <VolumeX className="w-4 h-4 text-gray-500" />
+              )}
+            </motion.div>
+
+            {/* Volume Slider */}
+            <AnimatePresence>
+              {showVolumeSlider && (
+                <motion.div
+                  className="absolute top-8 right-0 w-48 bg-black/90 backdrop-blur-xl border border-white/10 p-4 z-50 rounded-xl"
+                  style={{ boxShadow: getAdaptiveGlow("high") }}
+                  initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: -10 }}
+                  transition={springConfig}
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-white font-medium">Volume</h3>
+                    <span className="text-gray-400 text-sm">{volumeLevel}%</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <motion.button
+                      className="p-1 rounded-md hover:bg-white/10"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleVolumeChange(Math.max(0, volumeLevel - 10))}
+                    >
+                      <Minus className="w-3 h-3 text-white" />
+                    </motion.button>
+
+                    <div className="flex-1 relative">
+                      <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full bg-white rounded-full"
+                          style={{ width: `${volumeLevel}%` }}
+                          transition={gentleSpring}
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={volumeLevel}
+                        onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </div>
+
+                    <motion.button
+                      className="p-1 rounded-md hover:bg-white/10"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleVolumeChange(Math.min(100, volumeLevel + 10))}
+                    >
+                      <Plus className="w-3 h-3 text-white" />
+                    </motion.button>
+                  </div>
+
+                  <motion.button
+                    className="w-full mt-3 p-2 rounded-md bg-white/10 hover:bg-white/20 text-white text-sm"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={toggleVolume}
+                  >
+                    {volumeEnabled ? "Mute" : "Unmute"}
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Battery */}
+          <div className="relative">
+            <motion.div
+              className="flex items-center gap-1 cursor-pointer p-1 rounded-md hover:bg-white/10"
+              whileHover={{ scale: 1.05, color: "#ffffff" }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowBatteryMenu(!showBatteryMenu)}
+            >
+              {getBatteryIcon()}
+              <span>{batteryLevel}%</span>
+            </motion.div>
+
+            {/* Battery Menu */}
+            <AnimatePresence>
+              {showBatteryMenu && (
+                <motion.div
+                  className="absolute top-8 right-0 w-56 bg-black/90 backdrop-blur-xl border border-white/10 p-4 z-50 rounded-xl"
+                  style={{ boxShadow: getAdaptiveGlow("high") }}
+                  initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: -10 }}
+                  transition={springConfig}
+                >
+                  <div className="text-center mb-4">
+                    <div className="text-3xl font-bold text-white mb-1">{batteryLevel}%</div>
+                    <div className="text-gray-400 text-sm">{batteryLevel > 20 ? "Battery Normal" : "Low Battery"}</div>
+                  </div>
+
+                  <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden mb-4">
+                    <motion.div
+                      className={`h-full rounded-full ${batteryLevel > 20 ? "bg-green-500" : "bg-red-500"}`}
+                      style={{ width: `${batteryLevel}%` }}
+                      transition={gentleSpring}
+                    />
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-300">
+                      <span>Time remaining:</span>
+                      <span>{Math.floor(batteryLevel / 10)} hours</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Power source:</span>
+                      <span>Battery</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Condition:</span>
+                      <span>Normal</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Time */}
           <motion.div
-            className="text-white font-mono"
+            className="text-white font-mono cursor-pointer p-1 rounded-md hover:bg-white/10"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
+            whileHover={{ scale: 1.05 }}
           >
             {time.toLocaleTimeString("en-US", {
               hour12: false,
@@ -890,7 +1170,7 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
             <AnimatePresence>
               {showUserMenu && (
                 <motion.div
-                  className="absolute top-8 right-0 w-48 bg-black/80 backdrop-blur-xl border-white/10 p-2 z-50 rounded-xl"
+                  className="absolute top-8 right-0 w-48 bg-black/90 backdrop-blur-xl border border-white/10 p-2 z-50 rounded-xl"
                   style={{ boxShadow: getAdaptiveGlow("high") }}
                   initial={{ opacity: 0, scale: 0.8, y: -10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -903,15 +1183,42 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
                   >
-                    <div className="text-white font-medium">{user?.name}</div>
-                    <div className="text-gray-400 text-sm">@{user?.username}</div>
+                    <div className="text-white font-medium">{user?.name || "User"}</div>
+                    <div className="text-gray-400 text-sm">@{user?.username || "user"}</div>
                   </motion.div>
                   <div className="space-y-1">
                     {[
-                      { icon: Settings, label: "System Preferences" },
-                      { icon: Monitor, label: "Display Settings" },
+                      {
+                        icon: Settings,
+                        label: "System Preferences",
+                        action: () => {
+                          openApp(desktopApps.find((app) => app.id === "settings")!)
+                          setShowUserMenu(false)
+                        },
+                      },
+                      {
+                        icon: Monitor,
+                        label: "Display Settings",
+                        action: () => {
+                          openApp(desktopApps.find((app) => app.id === "settings")!)
+                          setShowUserMenu(false)
+                        },
+                      },
                       { icon: LogOut, label: "Sign Out", action: onLogout },
-                      { icon: Power, label: "Shut Down" },
+                      {
+                        icon: Power,
+                        label: "Shut Down",
+                        action: () => {
+                          // Simulate shutdown animation
+                          document.body.style.transition = "opacity 1s ease-out"
+                          document.body.style.opacity = "0"
+                          setTimeout(() => {
+                            document.body.style.opacity = "1"
+                            document.body.style.transition = ""
+                            onLogout()
+                          }, 1000)
+                        },
+                      },
                     ].map((item, index) => (
                       <motion.button
                         key={item.label}
@@ -948,10 +1255,16 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
           onClick={() => openApp(desktopApps.find((app) => app.id === "files")!)}
           adaptiveGlow={getAdaptiveGlow("low")}
         />
-        <DesktopIcon icon={Trash2} label="Trash" onClick={() => {}} adaptiveGlow={getAdaptiveGlow("low")} />
+        <DesktopIcon
+          icon={Trash2}
+          label="Trash"
+          onClick={emptyTrash}
+          adaptiveGlow={getAdaptiveGlow("low")}
+          className="trash-icon"
+        />
       </motion.div>
 
-      {/* App Launcher */}
+      {/* Enhanced App Launcher with working search */}
       <AnimatePresence>
         {searchOpen && (
           <motion.div
@@ -988,9 +1301,8 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
                 </motion.div>
 
                 <div className="grid grid-cols-5 gap-4">
-                  {desktopApps
-                    .filter((app) => app.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                    .map((app, index) => {
+                  {filteredApps.length > 0 ? (
+                    filteredApps.map((app, index) => {
                       const Icon = app.icon
                       return (
                         <motion.button
@@ -1027,7 +1339,17 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
                           </motion.span>
                         </motion.button>
                       )
-                    })}
+                    })
+                  ) : (
+                    <motion.div
+                      className="col-span-5 text-center py-12"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <Search className="w-12 h-12 mx-auto mb-4 text-gray-400 opacity-50" />
+                      <p className="text-gray-400">No applications found for "{searchQuery}"</p>
+                    </motion.div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1124,7 +1446,7 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={springConfig}
                       >
-                        {window.snapped.replace("-", " ")}
+                        {window.snapped === "left" ? "Left Half" : "Right Half"}
                       </motion.div>
                     )}
                   </div>
@@ -1188,7 +1510,7 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
           })}
       </AnimatePresence>
 
-      {/* Draggable Dock with adaptive glow */}
+      {/* Draggable Dock with proper tooltips */}
       <motion.div
         ref={dockRef}
         className={dockStyles.className}
@@ -1197,17 +1519,59 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
         animate={{ y: 0, opacity: 1 }}
         transition={{ ...springConfig, delay: 0.6 }}
         drag
-        dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-        dragElastic={0.1}
+        dragConstraints={{ left: -50, right: 50, top: -50, bottom: 50 }}
+        dragElastic={0.3}
+        dragTransition={{ bounceStiffness: 300, bounceDamping: 20 }}
         onDragStart={() => setIsDraggingDock(true)}
-        onDragEnd={handleDockDrag}
-        whileDrag={{ scale: 1.05, rotate: isDraggingDock ? 2 : 0 }}
+        onDrag={(event, info) => {
+          // Real-time position updates during drag
+          const { x, y } = info.point
+          const windowWidth = window.innerWidth
+          const windowHeight = window.innerHeight
+
+          let newPosition: DockPosition = "bottom"
+
+          const margin = 150 // Larger detection area
+          const isNearLeft = x < margin
+          const isNearRight = x > windowWidth - margin
+          const isNearTop = y < margin + 64
+          const isNearBottom = y > windowHeight - margin
+
+          if (isNearLeft && isNearTop) newPosition = "top-left"
+          else if (isNearRight && isNearTop) newPosition = "top-right"
+          else if (isNearLeft && isNearBottom) newPosition = "bottom-left"
+          else if (isNearRight && isNearBottom) newPosition = "bottom-right"
+          else if (isNearLeft) newPosition = "left"
+          else if (isNearRight) newPosition = "right"
+          else if (isNearTop) newPosition = "top"
+          else newPosition = "bottom"
+
+          // Update position in real-time during drag
+          if (newPosition !== dockPosition) {
+            setDockPosition(newPosition)
+          }
+        }}
+        onDragEnd={(event, info) => {
+          setIsDraggingDock(false)
+          // Final position is already set by onDrag
+        }}
+        whileDrag={{
+          scale: 1.1,
+          rotate: 0,
+          boxShadow: getAdaptiveGlow("high"),
+          zIndex: 100,
+        }}
       >
         <motion.div
-          className="bg-black/40 backdrop-blur-xl border-white/10 p-3 rounded-2xl shadow-2xl cursor-grab active:cursor-grabbing"
+          className="bg-black/50 backdrop-blur-xl border-white/20 p-3 rounded-2xl shadow-2xl cursor-grab active:cursor-grabbing"
           style={{ boxShadow: getAdaptiveGlow("high") }}
-          whileHover={{ scale: 1.02, y: -2, boxShadow: getAdaptiveGlow("high") }}
-          transition={gentleSpring}
+          whileHover={{
+            scale: 1.02,
+            y: dockPosition.includes("bottom") ? -4 : 0,
+            x: dockPosition.includes("left") ? -4 : dockPosition.includes("right") ? 4 : 0,
+            boxShadow: getAdaptiveGlow("high"),
+          }}
+          transition={{ type: "spring", stiffness: 400, damping: 25 }}
         >
           <div
             className={`flex items-center gap-2 ${dockPosition.includes("left") || dockPosition.includes("right") ? "flex-col" : "flex-row"}`}
@@ -1220,6 +1584,7 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
               onHover={() => setHoveredDockItem("launcher")}
               onLeave={() => setHoveredDockItem(null)}
               adaptiveGlow={getAdaptiveGlow("medium")}
+              name="App Launcher"
             >
               <motion.div
                 className="w-12 h-12 bg-gradient-to-br from-purple-600 to-green-600 rounded-xl flex items-center justify-center"
@@ -1238,7 +1603,8 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
             {/* Dock Apps */}
             {dockApps.map((app, index) => {
               const Icon = app.icon
-              const isRunning = windows.some((w) => w.title === app.name)
+              const runningWindow = windows.find((w) => w.title === app.name)
+              const isRunning = !!runningWindow
               const isHovered = hoveredDockItem === app.id
 
               return (
@@ -1251,10 +1617,26 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
                   <DockItem
                     onClick={() => openApp(app)}
                     isHovered={isHovered}
-                    onHover={() => setHoveredDockItem(app.id)}
-                    onLeave={() => setHoveredDockItem(null)}
+                    onHover={() => {
+                      setHoveredDockItem(app.id)
+                      // Show preview for running apps after a short delay
+                      if (runningWindow) {
+                        setTimeout(() => {
+                          if (hoveredDockItem === app.id) {
+                            setShowWindowPreview(runningWindow.id)
+                          }
+                        }, 500)
+                      }
+                    }}
+                    onLeave={() => {
+                      setHoveredDockItem(null)
+                      setShowWindowPreview(null)
+                    }}
                     isRunning={isRunning}
                     adaptiveGlow={getAdaptiveGlow("medium")}
+                    name={app.name}
+                    windowId={runningWindow?.id}
+                    showPreview={runningWindow && showWindowPreview === runningWindow.id}
                   >
                     <motion.div
                       className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -1301,10 +1683,24 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
                           setActiveWindow(window.id)
                         }}
                         isHovered={isHovered}
-                        onHover={() => setHoveredDockItem(window.id)}
-                        onLeave={() => setHoveredDockItem(null)}
+                        onHover={() => {
+                          setHoveredDockItem(window.id)
+                          // Show preview after a short delay
+                          setTimeout(() => {
+                            if (hoveredDockItem === window.id) {
+                              setShowWindowPreview(window.id)
+                            }
+                          }, 500)
+                        }}
+                        onLeave={() => {
+                          setHoveredDockItem(null)
+                          setShowWindowPreview(null)
+                        }}
                         isRunning={true}
                         adaptiveGlow={getAdaptiveGlow("medium")}
+                        name={window.title}
+                        windowId={window.id}
+                        showPreview={showWindowPreview === window.id}
                       >
                         <motion.div
                           className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -1330,6 +1726,34 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
         </motion.div>
       </motion.div>
 
+      {/* Window Preview */}
+      <AnimatePresence>
+        {showWindowPreview && (
+          <motion.div
+            className="fixed z-50 pointer-events-none"
+            style={{
+              left: dockPosition.includes("left") ? "120px" : dockPosition.includes("right") ? "auto" : "50%",
+              right: dockPosition.includes("right") ? "120px" : "auto",
+              bottom: dockPosition.includes("bottom") ? "120px" : "auto",
+              top: dockPosition.includes("top") ? "120px" : "auto",
+              transform:
+                !dockPosition.includes("left") && !dockPosition.includes("right") ? "translateX(-50%)" : "none",
+            }}
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            transition={springConfig}
+          >
+            <WindowPreview
+              windowId={showWindowPreview}
+              windows={windows}
+              getAdaptiveGlow={getAdaptiveGlow}
+              activeWindow={activeWindow}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Click outside handlers */}
       <AnimatePresence>
         {showUserMenu && (
@@ -1354,6 +1778,54 @@ export default function Desktop({ user, onLogout }: DesktopProps) {
           />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showNotifications && (
+          <motion.div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowNotifications(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showWifiMenu && (
+          <motion.div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowWifiMenu(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showVolumeSlider && (
+          <motion.div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowVolumeSlider(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showBatteryMenu && (
+          <motion.div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowBatteryMenu(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
@@ -1367,6 +1839,9 @@ function DockItem({
   isRunning = false,
   isLauncher = false,
   adaptiveGlow,
+  name,
+  windowId,
+  showPreview = false,
 }: {
   children: React.ReactNode
   onClick: () => void
@@ -1376,21 +1851,24 @@ function DockItem({
   isRunning?: boolean
   isLauncher?: boolean
   adaptiveGlow: string
+  name: string
+  windowId?: string
+  showPreview?: boolean
 }) {
   return (
     <div className="relative flex flex-col items-center">
-      {/* Tooltip */}
+      {/* Tooltip with proper app name */}
       <AnimatePresence>
         {isHovered && (
           <motion.div
-            className="absolute -top-12 bg-black/80 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md whitespace-nowrap"
+            className="absolute -top-12 bg-black/90 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-lg whitespace-nowrap border border-white/10"
             style={{ boxShadow: adaptiveGlow }}
             initial={{ opacity: 0, scale: 0.8, y: 5 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 5 }}
             transition={springConfig}
           >
-            App Name
+            {name}
           </motion.div>
         )}
       </AnimatePresence>
@@ -1428,21 +1906,130 @@ function DockItem({
   )
 }
 
+function WindowPreview({
+  windowId,
+  windows,
+  getAdaptiveGlow,
+  activeWindow,
+}: {
+  windowId: string
+  windows: Window[]
+  getAdaptiveGlow: (intensity: "low" | "medium" | "high") => string
+  activeWindow: string | null
+}) {
+  const window = windows.find((w) => w.id === windowId)
+  if (!window) return null
+
+  const Icon = window.icon
+  const WindowComponent = window.component
+
+  return (
+    <motion.div
+      className="bg-black/90 backdrop-blur-xl border border-white/20 rounded-xl shadow-2xl overflow-hidden"
+      style={{
+        width: "300px",
+        height: "200px",
+        boxShadow: getAdaptiveGlow("high"),
+      }}
+      whileHover={{ scale: 1.02 }}
+      transition={gentleSpring}
+    >
+      {/* Preview Header */}
+      <div className="flex items-center gap-2 p-2 border-b border-white/10 bg-gradient-to-r from-transparent to-white/5">
+        <Icon className="w-3 h-3 text-purple-400" />
+        <span className="text-white text-xs font-medium truncate">{window.title}</span>
+        <div className="ml-auto flex gap-1">
+          <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+          <div className="w-2 h-2 rounded-full bg-green-500/60" />
+          <div className="w-2 h-2 rounded-full bg-red-500/60" />
+        </div>
+      </div>
+
+      {/* Preview Content */}
+      <div className="h-[calc(100%-32px)] relative overflow-hidden">
+        {window.minimized ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Icon className="w-8 h-8 mx-auto mb-2 text-purple-400 opacity-50" />
+              <p className="text-gray-400 text-xs">Window is minimized</p>
+            </div>
+          </div>
+        ) : (
+          <div className="relative h-full">
+            {/* Simulated window content */}
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-800/50 to-gray-900/50">
+              {WindowComponent ? (
+                <div className="transform scale-75 origin-top-left w-[133%] h-[133%] pointer-events-none">
+                  <WindowComponent />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Icon className="w-12 h-12 mx-auto mb-2 text-purple-400" />
+                    <p className="text-white text-sm">{window.title}</p>
+                    <p className="text-gray-400 text-xs">Live Preview</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Active window indicator */}
+            {activeWindow === windowId && (
+              <motion.div
+                className="absolute top-1 right-1 w-2 h-2 bg-green-400 rounded-full"
+                animate={{ opacity: [1, 0.5, 1] }}
+                transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
+              />
+            )}
+
+            {/* Snap indicator */}
+            {window.snapped && (
+              <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-purple-500/80 rounded text-xs text-white">
+                {window.snapped === "left" ? "Left" : "Right"}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Preview footer with window info */}
+      <motion.div
+        className="absolute bottom-0 left-0 right-0 bg-black/80 backdrop-blur-sm p-1 text-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+      >
+        <p className="text-xs text-gray-300">
+          {window.maximized
+            ? "Maximized"
+            : window.minimized
+              ? "Minimized"
+              : window.snapped
+                ? `Snapped ${window.snapped}`
+                : `${window.width}×${window.height}`}
+        </p>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 function DesktopIcon({
   icon: Icon,
   label,
   onClick,
   adaptiveGlow,
+  className = "",
 }: {
   icon: any
   label: string
   onClick: () => void
   adaptiveGlow: string
+  className?: string
 }) {
   return (
     <motion.button
       onClick={onClick}
-      className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-white/10 group"
+      className={`flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-white/10 group ${className}`}
       whileHover={{ scale: 1.05, y: -2 }}
       whileTap={{ scale: 0.95 }}
       transition={springConfig}
@@ -1468,367 +2055,124 @@ function DesktopIcon({
   )
 }
 
-// Enhanced app components remain the same...
+// Placeholder app components (keeping them simple for now)
 function TerminalApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4 font-mono text-green-400"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="mb-2"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        MominOS Terminal v2.1.0
-      </motion.div>
-      <motion.div
-        className="mb-2"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        Type 'help' for available commands
-      </motion.div>
-      <motion.div
-        className="flex items-center"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.3 }}
-      >
+    <div className="h-full bg-black/90 p-4 font-mono text-green-400">
+      <div className="mb-2">MominOS Terminal v2.1.0</div>
+      <div className="mb-2">Type 'help' for available commands</div>
+      <div className="flex items-center">
         <span className="text-purple-400">user@momin-os:~$</span>
-        <motion.span
-          className="ml-2"
-          animate={{ opacity: [1, 0, 1] }}
-          transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY }}
-        >
-          _
-        </motion.span>
-      </motion.div>
-    </motion.div>
+        <span className="ml-2 animate-pulse">_</span>
+      </div>
+    </div>
   )
 }
 
 function FilesApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ ...bouncySpring, delay: 0.3 }}
-        >
-          <FolderOpen className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          File Explorer
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Browse your files and folders
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <FolderOpen className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>File Explorer</p>
+        <p className="text-gray-400 text-sm mt-2">Browse your files and folders</p>
+      </div>
+    </div>
   )
 }
 
 function SettingsApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div
-          initial={{ scale: 0, rotate: 180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ ...bouncySpring, delay: 0.3 }}
-        >
-          <Settings className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          System Settings
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Configure your system preferences
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <Settings className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>System Settings</p>
+        <p className="text-gray-400 text-sm mt-2">Configure your system preferences</p>
+      </div>
+    </div>
   )
 }
 
 function BrowserApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...bouncySpring, delay: 0.3 }}>
-          <Chrome className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Web Browser
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Browse the internet
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <Chrome className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>Web Browser</p>
+        <p className="text-gray-400 text-sm mt-2">Browse the internet</p>
+      </div>
+    </div>
   )
 }
 
 function CodeApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div
-          initial={{ scale: 0, rotate: -90 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ ...bouncySpring, delay: 0.3 }}
-        >
-          <Code className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Code Editor
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Write and edit code
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <Code className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>Code Editor</p>
+        <p className="text-gray-400 text-sm mt-2">Write and edit code</p>
+      </div>
+    </div>
   )
 }
 
 function MusicApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...bouncySpring, delay: 0.3 }}>
-          <Music className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Music Player
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Play your favorite music
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <Music className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>Music Player</p>
+        <p className="text-gray-400 text-sm mt-2">Play your favorite music</p>
+      </div>
+    </div>
   )
 }
 
 function PhotosApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div
-          initial={{ scale: 0, rotate: 45 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ ...bouncySpring, delay: 0.3 }}
-        >
-          <ImageIcon className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Photos
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          View and organize your photos
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <ImageIcon className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>Photos</p>
+        <p className="text-gray-400 text-sm mt-2">View and organize your photos</p>
+      </div>
+    </div>
   )
 }
 
 function CalculatorApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...bouncySpring, delay: 0.3 }}>
-          <Calculator className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Calculator
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Perform calculations
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <Calculator className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>Calculator</p>
+        <p className="text-gray-400 text-sm mt-2">Perform calculations</p>
+      </div>
+    </div>
   )
 }
 
 function CalendarApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div
-          initial={{ scale: 0, rotateY: 180 }}
-          animate={{ scale: 1, rotateY: 0 }}
-          transition={{ ...bouncySpring, delay: 0.3 }}
-        >
-          <Calendar className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Calendar
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Manage your schedule
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <Calendar className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>Calendar</p>
+        <p className="text-gray-400 text-sm mt-2">Manage your schedule</p>
+      </div>
+    </div>
   )
 }
 
 function MailApp() {
   return (
-    <motion.div
-      className="h-full bg-black/90 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
-      <motion.div
-        className="text-white text-center mt-20"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <motion.div
-          initial={{ scale: 0, rotate: -45 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ ...bouncySpring, delay: 0.3 }}
-        >
-          <Mail className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-        </motion.div>
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Mail
-        </motion.p>
-        <motion.p
-          className="text-gray-400 text-sm mt-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Send and receive emails
-        </motion.p>
-      </motion.div>
-    </motion.div>
+    <div className="h-full bg-black/90 p-4">
+      <div className="text-white text-center mt-20">
+        <Mail className="w-16 h-16 mx-auto mb-4 text-purple-400" />
+        <p>Mail</p>
+        <p className="text-gray-400 text-sm mt-2">Send and receive emails</p>
+      </div>
+    </div>
   )
 }

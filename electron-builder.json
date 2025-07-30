@@ -1,0 +1,18 @@
+{
+  "appId": "com.momin.os",
+  "productName": "MominOS",
+  "directories": {
+    "output": "dist"
+  },
+  "files": ["out/**/*", "electron/**/*", "node_modules/**/*"],
+  "mac": {
+    "category": "public.app-category.productivity",
+    "target": "dmg"
+  },
+  "win": {
+    "target": "nsis"
+  },
+  "linux": {
+    "target": "AppImage"
+  }
+}
